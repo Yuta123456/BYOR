@@ -1,0 +1,2 @@
+# run server
+- npx serve
