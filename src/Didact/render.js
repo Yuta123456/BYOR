@@ -15,16 +15,33 @@ export const createDom = (fiber) => {
   return dom
 }
 
+const commitRoot = () => {
+  commitWork(wipRoot.child)
+  wipRoot = null
+}
+const commitWork = (fiber) => {
+  if (!fiber) {
+    return
+  }
+  const domParent = fiber.parent.dom
+  domParent.appendChild(fiber.dom)
+  commitWork(fiber.child)
+  commitWork(fiber.sibling)
+}
 export const render = (element, container) => {
-  nextUnitOfWork = {
+  wipRoot = {
     dom: container,
     props: {
       children: [element],
     },
   }
+
+  nextUnitOfWork = wipRoot
 }
 
 let nextUnitOfWork = null
+let wipRoot = null
+
 const workLoop = (deadline) => {
   let shouldYield = false
   // console.log("workLoop fire")
@@ -34,18 +51,19 @@ const workLoop = (deadline) => {
     )
     shouldYield = deadline.timeRemaining() < 1
   }
+
+  if (!nextUnitOfWork && wipRoot) {
+    commitRoot()
+  }
+
   requestIdleCallback(workLoop)
 }
 requestIdleCallback(workLoop)
-
 function performUnitOfWork(fiber) {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber)
   }
 
-  if (fiber.parent) {
-    fiber.parent.dom.appendChild(fiber.dom)
-  }
   const elements = fiber.props.children
   let index = 0
   let prevSibling = null
