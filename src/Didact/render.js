@@ -78,13 +78,21 @@ const commitWork = (fiber) => {
   if (!fiber) {
     return
   }
-  const domParent = fiber.parent.dom
+
+  let domParentFiber = fiber.parent
+  // find a DOM
+  while (!domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent
+  }
+  const domParent = domParentFiber.dom
+  // const domParent = fiber.parent.dom
   if (
     fiber.effectTag === "PLACEMENT" &&
     fiber.dom != null
   ) {
     domParent.appendChild(fiber.dom)
   } else if (fiber.effectTag === "DELETION") {
+    commitDeletion(fiber, domParent)
     domParent.removeChild(fiber.dom)
   } else if (
     fiber.effectTag === "UPDATE" &&
@@ -101,6 +109,13 @@ const commitWork = (fiber) => {
   commitWork(fiber.sibling)
 }
 
+const commitDeletion = (fiber, domParent) => {
+  if (fiber.dom) {
+    domParent.removeChild(fiber.dom)
+  } else {
+    commitDeletion(fiber.child, domParent)
+  }
+}
 export const render = (element, container) => {
   wipRoot = {
     dom: container,
@@ -141,12 +156,13 @@ const workLoop = (deadline) => {
 requestIdleCallback(workLoop)
 
 function performUnitOfWork(fiber) {
-  if (!fiber.dom) {
-    fiber.dom = createDom(fiber)
+  const isFunctionComponent =
+    fiber.type instanceof Function
+  if (isFunctionComponent) {
+    updateFunctionComponent(fiber)
+  } else {
+    updateHostComponent(fiber)
   }
-
-  const elements = fiber.props.children
-  reconcileChildren(fiber, elements)
 
   if (fiber.child) {
     return fiber.child
@@ -158,6 +174,19 @@ function performUnitOfWork(fiber) {
     }
     nextFiber = nextFiber.parent
   }
+}
+
+function updateFunctionComponent(fiber) {
+  // TODO
+  const children = [fiber.type(fiber.props)]
+  reconcileChildren(fiber, children)
+}
+
+function updateHostComponent(fiber) {
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber)
+  }
+  reconcileChildren(fiber, fiber.props.children)
 }
 
 const reconcileChildren = (wipFiber, elements) => {
